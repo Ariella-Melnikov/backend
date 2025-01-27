@@ -14,8 +14,10 @@ try {
     console.log('✅ Firebase Admin initialized successfully');
 } catch (error) {
     console.error('❌ Firebase Admin initialization error:', error);
+    console.error('Make sure FIREBASE_SERVICE_ACCOUNT is properly set in .env');
     process.exit(1);
 }
 
+// Export both auth and Firestore db instances
 export const adminAuth = admin.auth();
-export const adminDb = admin.firestore(); 
+export const db = admin.firestore(); 

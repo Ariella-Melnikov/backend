@@ -6,14 +6,19 @@ import cookieParser from 'cookie-parser'
 import helmet from 'helmet'
 import morgan from 'morgan'
 import rateLimit from 'express-rate-limit'
+import { fileURLToPath } from 'url';
 
 // Import routes and services
+import { authRoutes } from './src/routes/auth.js';
 import { searchRouter } from './src/routes/search.routes.js' 
 import { chatbotRouter } from './src/routes/chatbot.routes.js'
 import { logger } from './src/services/logger.service.js' 
 
 const app = express()
 const server = http.createServer(app)
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Security middleware
 app.use(helmet())
@@ -44,11 +49,15 @@ if (process.env.NODE_ENV === 'production') {
 // Routes
 app.use('/api/search', searchRouter)
 app.use('/api/chatbot', chatbotRouter)
+app.use('/api/auth', authRoutes);
 
-// Serve static files in production
-app.get('/**', (req, res) => {
-    res.sendFile(path.resolve('public/index.html'))
-})
+// Serve static files from the public directory
+app.use(express.static(path.resolve(__dirname, 'public')));
+
+// Handle SPA routing - must be after API routes
+app.get('*', (req, res) => {
+    res.sendFile(path.resolve(__dirname, 'public', 'index.html'));
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
