@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import http from 'http'
 import path from 'path'
 import cors from 'cors'
@@ -9,7 +12,7 @@ import rateLimit from 'express-rate-limit'
 import { fileURLToPath } from 'url';
 
 // Import routes and services
-import { authRoutes } from './src/routes/auth.js';
+import { authRouter } from './src/routes/auth.routes.js';
 import { searchRouter } from './src/routes/search.routes.js' 
 import { chatbotRouter } from './src/routes/chatbot.routes.js'
 import { logger } from './src/services/logger.service.js' 
@@ -49,7 +52,7 @@ if (process.env.NODE_ENV === 'production') {
 // Routes
 app.use('/api/search', searchRouter)
 app.use('/api/chatbot', chatbotRouter)
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authRouter);
 
 // Serve static files from the public directory
 app.use(express.static(path.resolve(__dirname, 'public')));
