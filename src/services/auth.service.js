@@ -1,4 +1,5 @@
 import { adminAuth, adminDb, adminStorage } from '../config/firebase-admin.config.js';
+
 import admin from 'firebase-admin';
 
 const FIREBASE_AUTH_URL = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${process.env.FIREBASE_API_KEY}`;
@@ -7,9 +8,6 @@ export const authService = {
   // Login user
   async loginUser(email, password) {
     try {
-      console.log('Logging in user with Firebase REST API...');
-      console.log('FIREBASE_AUTH_URL:', FIREBASE_AUTH_URL);
-
       const response = await fetch(FIREBASE_AUTH_URL,{
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -44,7 +42,7 @@ export const authService = {
         },
       };
     } catch (error) {
-      console.error('Login error:', error.message);
+      console.error('Login error:', error);
       throw new Error('Authentication failed');
     }
   },
@@ -52,9 +50,8 @@ export const authService = {
   // Register user
   async registerUser(email, password, username, photo) {
     try {
-      console.log('Registering user with Firebase REST API...');
       // Use Firebase REST API to create user
-      const response = await fetch(`${FIREBASE_AUTH_URL}:signUp?key=${FIREBASE_API_KEY}`, {
+      const response = await fetch(FIREBASE_AUTH_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -109,9 +106,9 @@ export const authService = {
       const decodedToken = await adminAuth.verifyIdToken(token);
       const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
 
-      if (!userDoc.exists) {
-        throw new Error('User data not found');
-      }
+    if (!userDoc.exists) {
+      throw new Error('User data not found');
+    }
 
       const userData = userDoc.data();
       return {

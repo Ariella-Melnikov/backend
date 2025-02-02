@@ -106,3 +106,50 @@ export function readJsonFile(path) {
 	})
   
   }
+
+  export function extractPropertyRequirements(messages, latestResponse) {
+    const requirements = {
+        location: null,
+        minPrice: null,
+        maxPrice: null,
+        bedrooms: null,
+        bathrooms: null,
+        propertyType: null,
+        features: [],
+        area: null,
+        floor: null,
+        lastUpdated: new Date()
+    };
+
+    const fullConversation = [
+        ...messages.map(m => m.content),
+        latestResponse
+    ].join(' ');
+
+    const locationMatch = fullConversation.match(/(?:in|at|near)\s+([A-Za-z\s,]+?)(?:\s+with|\s+for|\s+that|\.|$)/i);
+    if (locationMatch) requirements.location = locationMatch[1].trim();
+
+    const priceMatch = fullConversation.match(/(\d+(?:,\d{3})*)\s*(?:to|\-)\s*(\d+(?:,\d{3})*)/);
+    if (priceMatch) {
+        requirements.minPrice = parseInt(priceMatch[1].replace(/,/g, ''));
+        requirements.maxPrice = parseInt(priceMatch[2].replace(/,/g, ''));
+    }
+
+    const bedroomMatch = fullConversation.match(/(\d+)\s*(?:bedroom|bed|br)/i);
+    if (bedroomMatch) requirements.bedrooms = parseInt(bedroomMatch[1]);
+
+    const propertyTypes = ['apartment', 'house', 'condo', 'studio', 'penthouse'];
+    for (const type of propertyTypes) {
+        if (fullConversation.toLowerCase().includes(type)) {
+            requirements.propertyType = type;
+            break;
+        }
+    }
+
+    const features = ['parking', 'balcony', 'elevator', 'storage', 'air conditioning'];
+    requirements.features = features.filter(feature =>
+        fullConversation.toLowerCase().includes(feature)
+    );
+
+    return requirements;
+}

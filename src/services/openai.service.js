@@ -34,12 +34,18 @@ export const openAiService = {
     async chatWithAI(messages) {
         try {
             console.log('Sending request to OpenAI...');
+            // Validate messages
+            const validMessages = messages.filter(msg => 
+                msg && msg.role && typeof msg.content === 'string'
+            );
+            
+            if (validMessages.length === 0) {
+                throw new Error('No valid messages to process');
+            }
+
             const completion = await openai.chat.completions.create({
                 model: "gpt-3.5-turbo",
-                messages: [
-                    systemPrompt,
-                    ...messages
-                ],
+                messages: validMessages,
                 temperature: 0.7,
                 max_tokens: 500
             });
@@ -47,7 +53,7 @@ export const openAiService = {
             return completion.choices[0].message;
         } catch (error) {
             console.error('OpenAI API Error:', error);
-            throw new Error('Failed to get response from OpenAI: ' + error.message);
+            throw new Error(`Failed to get response from OpenAI: ${error.message}`);
         }
     }
 };
