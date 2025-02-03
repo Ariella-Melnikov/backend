@@ -107,49 +107,274 @@ export function readJsonFile(path) {
   
   }
 
-  export function extractPropertyRequirements(messages, latestResponse) {
+export function extractPropertyRequirements(messages, latestResponse) {
+    // Initialize requirements object
     const requirements = {
         location: null,
-        minPrice: null,
-        maxPrice: null,
-        bedrooms: null,
-        bathrooms: null,
+        priceRange: {
+            min: null,
+            max: null
+        },
         propertyType: null,
+        rooms: null,
         features: [],
-        area: null,
-        floor: null,
         lastUpdated: new Date()
     };
 
+    // Combine all messages for analysis
     const fullConversation = [
         ...messages.map(m => m.content),
         latestResponse
-    ].join(' ');
+    ].join(" ");
 
-    const locationMatch = fullConversation.match(/(?:in|at|near)\s+([A-Za-z\s,]+?)(?:\s+with|\s+for|\s+that|\.|$)/i);
-    if (locationMatch) requirements.location = locationMatch[1].trim();
+    console.log("🔍 Analyzing Hebrew conversation:", fullConversation);
 
-    const priceMatch = fullConversation.match(/(\d+(?:,\d{3})*)\s*(?:to|\-)\s*(\d+(?:,\d{3})*)/);
-    if (priceMatch) {
-        requirements.minPrice = parseInt(priceMatch[1].replace(/,/g, ''));
-        requirements.maxPrice = parseInt(priceMatch[2].replace(/,/g, ''));
-    }
+    // 1. Location Matching (Israeli Cities)
+    const israeliCities = {
+        "תל אביב": "Tel Aviv",
+        "ירושלים": "Jerusalem",
+        "חיפה": "Haifa",
+        "רמת גן": "Ramat Gan",
+        "גבעתיים": "Givatayim",
+        "הרצליה": "Herzliya",
+        "רעננה": "Raanana",
+        // Central Israel
+        "פתח תקווה": "Petah Tikva",
+        "ראשון לציון": "Rishon LeZion",
+        "נתניה": "Netanya",
+        "חולון": "Holon",
+        "בת ים": "Bat Yam",
+        "רחובות": "Rehovot",
+        "כפר סבא": "Kfar Saba",
+        "הוד השרון": "Hod HaSharon",
+        "יהוד": "Yehud",
+        "אור יהודה": "Or Yehuda",
+        "רמת השרון": "Ramat HaSharon",
+        
+        // Jerusalem Area
+        "מבשרת ציון": "Mevaseret Zion",
+        "מעלה אדומים": "Maale Adumim",
+        "ביתר עילית": "Beitar Illit",
+        "מודיעין": "Modiin",
+        "בית שמש": "Beit Shemesh",
+        
+        // North
+        "עכו": "Akko",
+        "כרמיאל": "Karmiel",
+        "נהריה": "Nahariya",
+        "צפת": "Tzfat",
+        "טבריה": "Tiberias",
+        "עפולה": "Afula",
+        "קריית שמונה": "Kiryat Shmona",
+        
+        // Haifa Area
+        "קריית ביאליק": "Kiryat Bialik",
+        "קריית מוצקין": "Kiryat Motzkin",
+        "קריית ים": "Kiryat Yam",
+        "קריית אתא": "Kiryat Ata",
+        "טירת כרמל": "Tirat Carmel",
+        
+        // South
+        "באר שבע": "Beer Sheva",
+        "אשדוד": "Ashdod",
+        "אשקלון": "Ashkelon",
+        "דימונה": "Dimona",
+        "אילת": "Eilat",
+        "קריית גת": "Kiryat Gat",
+        
+        // Sharon Area
+        "זכרון יעקב": "Zichron Yaakov",
+        "בנימינה": "Binyamina",
+        "פרדס חנה": "Pardes Hana",
+        "חדרה": "Hadera",
+        
+        // Tel Aviv Neighborhoods
+        "רמת אביב": "Ramat Aviv",
+        "פלורנטין": "Florentin",
+        "צהלה": "Tzahala",
+        "נווה צדק": "Neve Tzedek",
+        "הצפון הישן": "Old North",
+        "הצפון החדש": "New North",
+        "יפו": "Jaffa",
+        "רמת החייל": "Ramat HaChayal",
+        
+        // Common Areas
+        "מרכז": "Center",
+        "צפון": "North",
+        "דרום": "South",
+        "השרון": "HaSharon",
+        "גוש דן": "Gush Dan",
+        "המושבות": "HaMoshavot"
+    };
 
-    const bedroomMatch = fullConversation.match(/(\d+)\s*(?:bedroom|bed|br)/i);
-    if (bedroomMatch) requirements.bedrooms = parseInt(bedroomMatch[1]);
-
-    const propertyTypes = ['apartment', 'house', 'condo', 'studio', 'penthouse'];
-    for (const type of propertyTypes) {
-        if (fullConversation.toLowerCase().includes(type)) {
-            requirements.propertyType = type;
+    for (const [hebrewCity, englishCity] of Object.entries(israeliCities)) {
+        if (fullConversation.includes(hebrewCity)) {
+            requirements.location = {
+                hebrew: hebrewCity,
+                english: englishCity
+            };
             break;
         }
     }
 
-    const features = ['parking', 'balcony', 'elevator', 'storage', 'air conditioning'];
-    requirements.features = features.filter(feature =>
-        fullConversation.toLowerCase().includes(feature)
-    );
+    // 2. Price Range Matching
+    // Match patterns like "4000 שקל" or "4000-5000 שקל" or "4000 עד 5000 שקל"
+    const pricePattern = /(\d{3,9})(?:\s*-\s*|\s*עד\s*)(\d{3,9})?\s*(?:שקל|ש"ח|₪)/;
+    const priceMatch = fullConversation.match(pricePattern);
+    if (priceMatch) {
+        requirements.priceRange.min = parseInt(priceMatch[1]);
+        requirements.priceRange.max = priceMatch[2] ? parseInt(priceMatch[2]) : null;
+    }
 
+    // 3. Property Type Matching
+    const propertyTypes = {
+        "דירה": "apartment",
+        "דירת גן": "garden_apartment",
+        "פנטהאוז": "penthouse",
+        "דופלקס": "duplex",
+        "וילה": "villa",
+        "קוטג": "cottage",
+        "יחידת דיור": "studio",
+        "דירת גג": "rooftop_apartment"
+    };
+
+    for (const [hebrewType, englishType] of Object.entries(propertyTypes)) {
+        if (fullConversation.includes(hebrewType)) {
+            requirements.propertyType = {
+                hebrew: hebrewType,
+                english: englishType
+            };
+            break;
+        }
+    }
+
+    // 4. Room Count Matching
+    // Match patterns like "3 חדרים" or "3.5 חדרים"
+    const roomPattern = /(\d+(?:\.\d)?)\s*חדרים/;
+    const roomMatch = fullConversation.match(roomPattern);
+    if (roomMatch) {
+        requirements.rooms = parseFloat(roomMatch[1]);
+    }
+
+    // 5. Features Matching
+    const features = {
+        "מרפסת": "balcony",
+        "ממ״ד": "safe_room",
+        "מעלית": "elevator",
+        "חניה": "parking",
+        "מחסן": "storage",
+        "מיזוג": "ac",
+        "אינטרקום": "intercom",
+        "דלת פלדה": "steel_door",
+        "מצלמות": "security_cameras",
+        "שער חשמלי": "electric_gate",
+        "לובי מפואר": "luxury_lobby",
+        "בניין לשימור": "preserved_building",
+        "תמא 38": "tama_38",
+        "מועדון דיירים": "residents_club",
+        "חדר כושר": "gym",
+        "בריכה": "pool",
+        "גג משותף": "shared_roof",
+        "סוכה": "sukkah_balcony",
+        "מטבח כפול": "double_kitchen",
+        "יחידת הורים": "master_suite",
+        "חדר ארונות": "walk_in_closet",
+        "שירותי אורחים": "guest_bathroom",
+        "מרפסת שמש": "sun_balcony",
+        "מרפסת שירות": "service_balcony",
+        "מטבח כשר": "kosher_kitchen",
+        "מטבח משודרג": "upgraded_kitchen",
+        "אי במטבח": "kitchen_island",
+        "משופצת": "renovated",
+        "משופצת מהיסוד": "fully_renovated",
+        "במצב שמור": "well_maintained",
+        "לשיפוץ": "needs_renovation",
+        "גמר מפואר": "luxury_finish",
+        "ריצוף יוקרתי": "luxury_flooring",
+        "נוף לים": "sea_view",
+        "נוף פתוח": "open_view",
+        "נוף לפארק": "park_view",
+        "שמש טובה": "good_sun",
+        "אוויר טוב": "good_air",
+        "שקט במיוחד": "very_quiet",
+        "קרוב למרכז": "close_to_center",
+        "קרוב לים": "close_to_beach",
+        "קרוב לבתי כנסת": "close_to_synagogue",
+        "קרוב לבתי ספר": "close_to_schools",
+        "קרוב לתחבורה": "close_to_transport",
+        "ריהוט": "furnished",
+        "ריהוט חלקי": "partially_furnished",
+        "מכשירי חשמל": "appliances_included",
+        "חימום תת רצפתי": "floor_heating",
+        "דלתות פנים": "interior_doors",
+        "תריסים חשמליים": "electric_shutters",
+        "רשתות": "window_screens",
+        "גישה לנכים": "wheelchair_accessible",
+        "דירת גן נגישה": "accessible_garden_apt",
+        "מעלית שבת": "shabbat_elevator",
+        "דוד שמש": "solar_heater",
+        "דוד חשמל": "electric_heater",
+        "גז מרכזי": "central_gas",
+        "חימום מרכזי": "central_heating",
+        "קומה גבוהה": "high_floor",
+        "בניין חדש": "new_building",
+        "גינה": "garden",
+        "סורגים": "window_bars",
+        "דוד שמש": "solar_heater",
+    };
+
+    for (const [hebrewFeature, englishFeature] of Object.entries(features)) {
+        if (fullConversation.includes(hebrewFeature)) {
+            requirements.features.push({
+                hebrew: hebrewFeature,
+                english: englishFeature
+            });
+        }
+    }
+
+    console.log("✅ Extracted requirements:", requirements);
     return requirements;
+}
+
+export function formatRequirementsForConfirmation(requirements) {
+    const summary = {
+        hebrew: '',
+        english: ''
+    };
+
+    // Hebrew Summary
+    let hebrewText = '📋 סיכום הדרישות שלך:\n\n';
+    if (requirements.location) {
+        hebrewText += `📍 מיקום: ${requirements.location.hebrew}\n`;
+    }
+    if (requirements.priceRange.min || requirements.priceRange.max) {
+        hebrewText += '💰 תקציב: ';
+        if (requirements.priceRange.min && requirements.priceRange.max) {
+            hebrewText += `${requirements.priceRange.min.toLocaleString()} - ${requirements.priceRange.max.toLocaleString()} ₪\n`;
+        } else if (requirements.priceRange.min) {
+            hebrewText += `מ-${requirements.priceRange.min.toLocaleString()} ₪\n`;
+        }
+    }
+    if (requirements.propertyType) {
+        hebrewText += `🏡 סוג הנכס: ${requirements.propertyType.hebrew}\n`;
+    }
+    if (requirements.rooms) {
+        hebrewText += `🛏️ חדרים: ${requirements.rooms}\n`;
+    }
+    if (requirements.features.length > 0) {
+        hebrewText += '✨ מאפיינים: ' + requirements.features.map(f => f.hebrew).join(', ') + '\n';
+    }
+    hebrewText += '\nהאם אלו הפרטים הנכונים? אשמח לעדכן אם צריך שינויים.';
+
+    // English Summary (for backend logging)
+    let englishText = '📋 Requirements Summary:\n\n';
+    if (requirements.location) {
+        englishText += `📍 Location: ${requirements.location.english}\n`;
+    }
+    // ... similar for other fields
+
+    return {
+        hebrew: hebrewText,
+        english: englishText
+    };
 }

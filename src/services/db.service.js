@@ -70,83 +70,84 @@ export const dbService = {
 		}
 	},
 
+  /**
+     * 💬 Save chat messages in real-time as conversation progresses.
+     */
+  async saveChatMessage(userId, chatId, message) {
+	try {
+		console.log(`💾 Saving chat message for user: ${userId}, chat: ${chatId}`);
+
+		const messageRef = adminDb.collection('users')
+			.doc(userId)
+			.collection('chats')
+			.doc(chatId)
+			.collection('messages')
+			.doc();
+
+		await messageRef.set({
+			...message,
+			createdAt: admin.firestore.FieldValue.serverTimestamp(),
+		});
+
+		console.log("✅ Chat message saved:", message);
+	} catch (error) {
+		console.error('❌ Error saving chat message:', error);
+		throw new Error('Failed to save chat message');
+	}
+},
+
 /**
-	* Create a new chat for a user, or fetch an existing one if relevant.
-	*/
-	async createNewChat(userId, parameters) {
-		try {
-			// Reference to the user's chat collection
-			const chatsRef = adminDb.collection('users').doc(userId).collection('chats'); // ✅ FIXED: adminDb used
+ * ✅ Save final search parameters **ONLY on user confirmation**.
+ */
+async confirmSearch(userId, chatId, propertyRequirements) {
+    try {
+        console.log("📦 Saving confirmed search parameters:", propertyRequirements);
 
-			// Create a new chat document
-			const newChatRef = chatsRef.doc(); // Auto-generate chatId
-			const chatId = newChatRef.id;
+        await adminDb.collection('users')
+            .doc(userId)
+            .collection('chats')
+            .doc(chatId)
+            .collection('parameters')
+            .add({
+                ...propertyRequirements,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
 
-			// Save chat metadata
-			await newChatRef.set({
-				createdAt: admin.firestore.FieldValue.serverTimestamp(),
-				updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-			});
+        console.log("✅ Search parameters successfully saved!");
+        return true;
+    } catch (error) {
+        console.error("🔥 Error saving parameters:", error);
+        throw new Error("Failed to save confirmed search parameters.");
+    }
+},
 
-			// Add parameters to the parameters subcollection
-			const paramsRef = newChatRef.collection('parameters').doc();
-			await paramsRef.set({
-				...parameters,
-				createdAt: admin.firestore.FieldValue.serverTimestamp(),
-			});
+/**
+ * 🆕 Create or retrieve the latest chat for the user.
+ */
+async getOrCreateChat(userId) {
+	try {
+		console.log(`🔄 Checking for existing chat for user: ${userId}`);
 
-			console.log(`✅ New chat created for user ${userId} with chatId ${chatId}`);
+		const chatsRef = adminDb.collection('users').doc(userId).collection('chats');
+		const latestChatQuery = await chatsRef.orderBy('createdAt', 'desc').limit(1).get();
 
-			return { chatId, userId };
-		} catch (error) {
-			console.error('🔥 Error creating chat:', error);
-			throw new Error('Failed to create chat');
+		if (!latestChatQuery.empty) {
+			console.log("✅ Found existing chat:", latestChatQuery.docs[0].id);
+			return { chatId: latestChatQuery.docs[0].id, ...latestChatQuery.docs[0].data() };
 		}
-	},
 
-	/**
-	* Get the most recent chat for a user.
-	*/
-	async getLatestChat(userId) {
-		try {
-			const chatsRef = adminDb.collection('users').doc(userId).collection('chats'); // ✅ FIXED: adminDb used
+		// No existing chat, create a new one
+		const newChatRef = chatsRef.doc();
+		await newChatRef.set({
+			createdAt: admin.firestore.FieldValue.serverTimestamp(),
+			updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+		});
 
-			// Query the most recent chat
-			const latestChatQuery = await chatsRef.orderBy('createdAt', 'desc').limit(1).get();
-			if (latestChatQuery.empty) {
-				return null;
-			}
-
-			const latestChat = latestChatQuery.docs[0];
-			return { chatId: latestChat.id, ...latestChat.data() };
-		} catch (error) {
-			console.error('🔥 Error fetching latest chat:', error);
-			throw new Error('Failed to retrieve latest chat');
-		}
-	},
-
-	/**
-	* Get parameters for a specific chat.
-	*/
-	async getChatParameters(userId, chatId) {
-		try {
-			const paramsRef = adminDb.collection('users')
-				.doc(userId)
-				.collection('chats')
-				.doc(chatId)
-				.collection('parameters')
-				.orderBy('createdAt', 'desc')
-				.limit(1);
-
-			const paramsSnapshot = await paramsRef.get();
-			if (paramsSnapshot.empty) {
-				return null;
-			}
-
-			return paramsSnapshot.docs[0].data();
-		} catch (error) {
-			console.error('🔥 Error fetching chat parameters:', error);
-			throw new Error('Failed to get chat parameters');
-		}
-	},
+		console.log("🆕 Created new chat with ID:", newChatRef.id);
+		return { chatId: newChatRef.id };
+	} catch (error) {
+		console.error('❌ Error creating/retrieving chat:', error);
+		throw new Error('Failed to get or create chat');
+	}
+}
 };
