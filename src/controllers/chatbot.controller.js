@@ -6,10 +6,10 @@ import { extractPropertyRequirements, formatRequirementsForConfirmation } from '
 export const chatbotController = {
     async chat(req, res) {
         try {
-            console.log('🟢 Incoming chat request:', req.body);
-    
+            console.log('🟢 Incoming chat request:', req.body)
+
             // ✅ Step 1: Authenticate the User
-            const authHeader = req.headers.authorization;
+            const authHeader = req.headers.authorization
             if (!authHeader?.startsWith('Bearer ')) {
                 return res.json({
                     message: {
@@ -17,16 +17,16 @@ export const chatbotController = {
                         content: 'Please log in to save your property search preferences.',
                     },
                     requiresAuth: true,
-                });
+                })
             }
-    
+
             // ✅ Step 2: Verify Token
-            const token = authHeader.split('Bearer ')[1];
-            let userId;
+            const token = authHeader.split('Bearer ')[1]
+            let userId
             try {
-                const decodedToken = await adminAuth.verifyIdToken(token);
-                userId = decodedToken.uid;
-                console.log('✅ User authenticated:', userId);
+                const decodedToken = await adminAuth.verifyIdToken(token)
+                userId = decodedToken.uid
+                console.log('✅ User authenticated:', userId)
             } catch (error) {
                 return res.json({
                     message: {
@@ -34,52 +34,62 @@ export const chatbotController = {
                         content: 'Your session has expired. Please log in again.',
                     },
                     requiresAuth: true,
-                });
+                })
             }
-    
+
             // ✅ Step 3: Validate Messages
-            const { messages } = req.body;
+            const { messages } = req.body
             if (!Array.isArray(messages) || messages.some((m) => !m?.content)) {
-                return res.status(400).json({ error: 'Invalid messages format' });
+                return res.status(400).json({ error: 'Invalid messages format' })
             }
-            console.log('📩 Messages received:', messages);
-    
-            // ✅ Step 4: Get Response from OpenAI
-            const response = await openAiService.chatWithAI(messages);
-            console.log('🤖 OpenAI Response:', response);
-    
-            // ✅ Step 5: Check If User Confirmed Search
-            if (response.content.includes("start property search")) {
-                console.log("🚀 User confirmed search! Saving details...");
+            console.log('📩 Messages received:', messages)
+
+            // ✅ Step 4: Get or Create a Chat
+            const { chatId, isNewSession } = await dbService.getOrCreateChat(userId)
+
+            // ✅ Step 5: Save User Message
+            const userMessage = messages[messages.length - 1]
+            await dbService.saveChatMessage(
+                userId,
+                chatId,
+                { role: 'user', content: userMessage.content },
+                isNewSession
+            )
+
+            // ✅ Step 6: Get Response from OpenAI
+            const response = await openAiService.chatWithAI(messages)
+            console.log('🤖 OpenAI Response:', response)
+
+            // ✅ Step 7: Save Assistant Message
+            await dbService.saveChatMessage(userId, chatId, { role: 'assistant', content: response.content }, false)
+
+            // Check if the response contains a summary (indicating end of conversation)
+            const hasSummary = response.content.includes('📌 **Summary of your search preferences:**')
+
+            if (hasSummary) {
+                // Only extract parameters if we have a summary
+                const propertyRequirements = extractPropertyRequirements(messages, response.content)
                 
-                // Retrieve last stored search parameters
-                let latestChat = await dbService.getOrCreateChat(userId);
-                
-                // Save the confirmed search
-                await dbService.confirmSearch(userId, latestChat.chatId, response.propertyRequirements);
-    
                 return res.json({
-                    message: { role: "assistant", content: "Great! I'm starting the search now." },
-                    startSearch: true,
-                    confirmedRequirements: response.propertyRequirements
-                });
+                    message: {
+                        role: 'assistant',
+                        content: response.content,
+                    },
+                    searchPreferences: propertyRequirements,
+                    requiresUserConfirmation: true, // Show the confirmation button
+                })
             }
-    
-            // ✅ Step 6: Save Conversation History
-            let latestChat = await dbService.getOrCreateChat(userId);
-            await dbService.saveChatMessage(userId, latestChat.chatId, {
-                role: 'user',
-                content: messages[messages.length - 1].content
-            });
-    
-            // ✅ Step 7: Return AI Response to User
+
+            // Regular response without summary
             return res.json({
-                message: response,
-                requiresUserConfirmation: response.requiresUserConfirmation || false
-            });
+                message: {
+                    role: 'assistant',
+                    content: response.content,
+                }
+            })
         } catch (error) {
-            console.error('Chat Error:', error);
-            res.status(500).json({ error: 'Failed to process chat request', details: error.message });
+            console.error('❌ Chat Error:', error)
+            res.status(500).json({ error: 'Failed to process chat request', details: error.message })
         }
     },
 
@@ -96,6 +106,7 @@ export const chatbotController = {
             res.status(500).json({ error: 'Failed to fetch chat history' })
         }
     },
+
     async confirmSearch(req, res) {
         try {
             const { userId, chatId, propertyRequirements } = req.body
