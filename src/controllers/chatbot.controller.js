@@ -64,12 +64,19 @@ export const chatbotController = {
             await dbService.saveChatMessage(userId, chatId, { role: 'assistant', content: response.content }, false)
 
             // Check if the response contains a summary (indicating end of conversation)
-            const hasSummary = response.content.includes('📌 **Summary of your search preferences:**')
+            const summaryRegex =
+                /📌 \*\*(?:Summary of your search preferences|סיכום העדפות החיפוש שלך|סיכום של קריטריוני החיפוש שלך):\*\*/i
+            const hasSummary = summaryRegex.test(response.content)
+
+            console.log('🔍 Summary detected:', hasSummary) // ✅ Debug log
+            console.log('🔍 Response Content:', response.content) // ✅ Log OpenAI response
 
             if (hasSummary) {
                 // Only extract parameters if we have a summary
                 const propertyRequirements = extractPropertyRequirements(messages, response.content)
-                
+
+                console.log('✅ Sending confirmation to frontend') // ✅ Debug log
+
                 return res.json({
                     message: {
                         role: 'assistant',
@@ -85,7 +92,7 @@ export const chatbotController = {
                 message: {
                     role: 'assistant',
                     content: response.content,
-                }
+                },
             })
         } catch (error) {
             console.error('❌ Chat Error:', error)
