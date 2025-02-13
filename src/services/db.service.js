@@ -107,29 +107,100 @@ export const dbService = {
             throw new Error('Failed to save chat message')
         }
     },
+    async saveOrUpdateProperties(userId, chatId, properties) {
+        try {
+          console.log('📦 Checking if properties exist for chat:', chatId);
+      
+          const propertiesRef = adminDb
+            .collection('users')
+            .doc(userId)
+            .collection('chats')
+            .doc(chatId)
+            .collection('properties');
+      
+          const existingPropertiesSnapshot = await propertiesRef.get();
+      
+          if (!existingPropertiesSnapshot.empty) {
+            console.log('🔄 Properties already exist. Updating them...');
+      
+            // Update each property document
+            for (const property of properties) {
+              const existingDoc = existingPropertiesSnapshot.docs.find(doc => doc.id === property.id);
+      
+              if (existingDoc) {
+                await propertiesRef.doc(existingDoc.id).update({
+                  ...property,
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+              } else {
+                // Add new property
+                await propertiesRef.add({
+                  ...property,
+                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+              }
+            }
+          } else {
+            console.log('🆕 No properties exist. Creating new property documents...');
+            
+            // Add new properties
+            for (const property of properties) {
+              await propertiesRef.add({
+                ...property,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            }
+          }
+      
+          console.log('✅ Properties successfully saved/updated for chat:', chatId);
+        } catch (error) {
+          console.error('❌ Error saving properties:', error);
+          throw new Error('Failed to save or update properties.');
+        }
+      },
     /**
      * ✅ Save final search parameters **ONLY on user confirmation**.
      */
     async confirmSearch(userId, chatId, propertyRequirements) {
         try {
-            console.log('📦 Saving confirmed search parameters:', propertyRequirements)
+            console.log('📦 Saving confirmed search parameters:', propertyRequirements);
 
-            await adminDb
+            const parametersRef = adminDb
                 .collection('users')
                 .doc(userId)
                 .collection('chats')
                 .doc(chatId)
-                .collection('parameters')
-                .add({
+                .collection('parameters');
+
+            // Check if parameters already exist
+            const existingParams = await parametersRef.get();
+            let result;
+
+            if (!existingParams.empty) {
+                // Update existing parameters
+                const docId = existingParams.docs[0].id;
+                await parametersRef.doc(docId).update({
+                    ...propertyRequirements,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+                result = { id: docId };
+            } else {
+                // Create new parameters
+                const newDoc = await parametersRef.add({
                     ...propertyRequirements,
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                })
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+                result = { id: newDoc.id };
+            }
 
-            console.log('✅ Search parameters successfully saved!')
-            return true
+            console.log('✅ Search parameters successfully saved!');
+            return result;
         } catch (error) {
-            console.error('🔥 Error saving parameters:', error)
-            throw new Error('Failed to save confirmed search parameters.')
+            console.error('🔥 Error saving parameters:', error);
+            throw new Error('Failed to save confirmed search parameters.');
         }
     },
 

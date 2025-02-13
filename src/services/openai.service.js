@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import dotenv from 'dotenv'
+import { extractPropertyRequirements } from './util.service.js'
 
 dotenv.config()
 
@@ -35,7 +36,7 @@ const systemPrompt = {
             
             📌 **Summary of your search preferences:**
             - 📍 Location: [Location]
-            - 💰 Budget: [MinPrice] - [MaxPrice]₪
+            - 💰 Maximum Budget: [MaxPrice]₪
             - 🏡 Property Type: [Type]
             - 🛏️ Bedrooms: [Bedrooms]
             - 🔥 Features: [Features List]
@@ -54,10 +55,10 @@ export const openAiService = {
     async chatWithAI(messages) {
         try {
             console.log('Sending request to OpenAI...')
-            // Add system prompt to the beginning of the conversation
+
             const messagesWithSystem = [
                 systemPrompt,
-                ...messages.filter((msg) => msg && msg.role && typeof msg.content === 'string')
+                ...messages.filter((msg) => msg && msg.role && typeof msg.content === 'string'),
             ]
 
             const completion = await openai.chat.completions.create({
@@ -67,7 +68,29 @@ export const openAiService = {
                 max_tokens: 500,
             })
 
-            return completion.choices[0].message
+            const responseMessage = completion.choices[0].message.content
+            console.log('🤖 OpenAI Response:', responseMessage)
+
+            // 🔍 Detect if response includes a summary
+            const summaryRegex =
+                /📌 \*\*(?:Summary of your search preferences|סיכום העדפות החיפוש שלך|סיכום של קריטריוני החיפוש שלך):\*\*/i
+            const hasSummary = summaryRegex.test(responseMessage) // ✅ FIXED HERE
+
+            let propertyRequirements = null
+
+            if (hasSummary) {
+                console.log('🔍 Extracting search parameters...')
+                propertyRequirements = extractPropertyRequirements(messages, responseMessage)
+            }
+
+            return {
+                message: {
+                    role: 'assistant',
+                    content: responseMessage,
+                },
+                searchPreferences: propertyRequirements,
+                requiresUserConfirmation: hasSummary, // Only show confirmation button if summary exists
+            }
         } catch (error) {
             console.error('OpenAI API Error:', error)
             throw new Error(`Failed to get response from OpenAI: ${error.message}`)
