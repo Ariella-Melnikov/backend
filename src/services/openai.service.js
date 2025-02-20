@@ -66,6 +66,7 @@ export const openAiService = {
                 messages: messagesWithSystem,
                 temperature: 0.7,
                 max_tokens: 500,
+                response_format: { type: "text" }
             })
 
             const responseMessage = completion.choices[0].message.content

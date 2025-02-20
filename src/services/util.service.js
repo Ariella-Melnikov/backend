@@ -118,6 +118,18 @@ export function extractPropertyRequirements(messages, latestResponse) {
         lastUpdated: new Date()
     };
 
+    // Features mapping
+    const featureMap = {
+      'מרפסת': 'balcony',
+      'ממ"ד': 'safe room',
+      'מעלית': 'elevator',
+      'חניה': 'parking',
+      'מיזוג': 'AC',
+      'מחסן': 'storage',
+      'גינה': 'garden',
+      'משופצת': 'renovated'
+    };
+
     // 1. Location Matching (Israeli Cities)
     const israeliCities = {
         "תל אביב": "Tel Aviv",
@@ -239,7 +251,17 @@ export function extractPropertyRequirements(messages, latestResponse) {
          requirements.rooms = parseInt(roomsMatch[1]);
      }
  
-     console.log("✅ Extracted Property Requirements:", requirements);
-     return requirements;
+     // Extract features
+     Object.entries(featureMap).forEach(([hebrew, english]) => {
+       if (latestResponse.toLowerCase().includes(hebrew.toLowerCase())) {
+         requirements.features.push({
+           hebrew: hebrew,
+           english: english
+         });
+       }
+     });
+
+    console.log("✅ Extracted Property Requirements:", requirements);
+    return requirements;
  }
 

@@ -1,101 +1,79 @@
-import { db } from '../config/firebase.config.js';
-import { collection, query, where, getDocs, addDoc, Timestamp } from 'firebase/firestore';
 import { scrapeProperties } from '../lib/scraper.js';
+import { dbService } from '../services/db.service.js';
 
-export async function searchProperties(req, res, next) {
+export async function searchProperties(req, res) {
   try {
-    const searchParams = req.body;
-    const userId = req.user?.uid;
-
-    // Check cache first
-    const searchResultsRef = collection(db, 'search_results');
-    const cacheQuery = query(
-      searchResultsRef,
-      where('search_params', '==', searchParams),
-      where('expires_at', '>', Timestamp.now())
-    );
-
-    const cachedResults = await getDocs(cacheQuery);
-    if (!cachedResults.empty) {
-      const cachedData = cachedResults.docs[0].data();
-      return res.json(cachedData.results);
+    const { userId, searchParams } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
     }
 
-    // If not in cache, scrape new data
-    const properties = await scrapeProperties(searchParams);
+    console.log('🔎 Searching for:', searchParams);
 
-    // Store in cache if user is authenticated and properties were found
-    if (properties.length > 0 && userId) {
-      await addDoc(searchResultsRef, {
-        search_params: searchParams,
-        results: properties,
-        user_id: userId,
-        created_at: Timestamp.now(),
-        expires_at: Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000)) // 24 hours from now
-      });
+    // 🏠 Start the web scraping process
+    const newProperties = await scrapeProperties(searchParams);
+
+    if (newProperties.length === 0) {
+      return res.status(404).json({ error: "No properties found." });
     }
 
-    res.json(properties);
+    // 🔄 Save or update search in Firestore (check existing data first)
+    const searchId = await dbService.saveOrUpdateUserSearch(userId, searchParams, newProperties);
+
+    // 🛠 Return updated properties to frontend
+    return res.json({ searchId, properties: newProperties });
+
   } catch (error) {
-    next(error);
+    console.error('❌ Search error:', error);
+    res.status(500).json({ error: "Failed to fetch property listings" });
   }
 }
 
-export async function saveSearch(req, res, next) {
+export async function saveSearch(req, res) {
   try {
-    const { name, searchParams } = req.body;
-    const userId = req.user?.uid;
+    const { userId, searchParams, properties } = req.body;
 
-    if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
+    if (!userId || !searchParams || !properties) {
+      return res.status(400).json({ error: "Missing required fields." });
     }
 
-    const savedSearchesRef = collection(db, 'saved_searches');
-    const docRef = await addDoc(savedSearchesRef, {
-      name,
-      search_params: searchParams,
-      user_id: userId,
-      created_at: Timestamp.now()
-    });
+    console.log("💾 Saving search for user:", userId);
 
-    const savedSearch = {
-      id: docRef.id,
-      name,
-      search_params: searchParams,
-      user_id: userId,
-      created_at: new Date().toISOString()
-    };
+    // 🔄 Save or update the search
+    const searchId = await dbService.saveOrUpdateUserSearch(userId, searchParams, properties);
 
-    res.json(savedSearch);
+    return res.json({ success: true, searchId, properties });
   } catch (error) {
-    next(error);
+    console.error("❌ Error saving search:", error);
+    res.status(500).json({ error: "Failed to save search results." });
   }
 }
 
-export async function getSavedSearches(req, res, next) {
+/**
+ * ✅ Fetch user's saved searches from Firestore.
+ */
+export async function getSavedSearches(req, res) {
   try {
-    const userId = req.user?.uid;
-
+    const { userId } = req.user;
     if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
+      return res.status(400).json({ error: "User ID is required." });
     }
 
-    const savedSearchesRef = collection(db, 'saved_searches');
-    const q = query(
-      savedSearchesRef,
-      where('user_id', '==', userId),
-      where('created_at', '<=', Timestamp.now())
-    );
+    console.log("📤 Fetching saved searches for user:", userId);
 
-    const querySnapshot = await getDocs(q);
-    const savedSearches = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      created_at: doc.data().created_at.toDate().toISOString()
-    }));
+    const propertiesRef = adminDb
+      .collection('users')
+      .doc(userId)
+      .collection('properties')
+      .orderBy('createdAt', 'desc'); // Latest first
 
-    res.json(savedSearches);
+    const snapshot = await propertiesRef.get();
+    const savedProperties = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    return res.json({ searches: savedProperties });
   } catch (error) {
-    next(error);
+    console.error("❌ Error fetching saved searches:", error);
+    return res.status(500).json({ error: "Failed to fetch saved searches." });
   }
 }

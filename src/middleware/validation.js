@@ -12,7 +12,7 @@ const SearchParamsSchema = z.object({
 export function validateSearchParams(req, res, next) {
   try {
     const validated = SearchParamsSchema.parse(req.body);
-    req.body = validated;
+    req.body = validated; // TODO: fix this
     next();
   } catch (error) {
     res.status(400).json({ error: 'Invalid search parameters' });

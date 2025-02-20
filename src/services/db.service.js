@@ -314,6 +314,31 @@ export const dbService = {
             throw new Error('Database error while saving user search.')
         }
     },
+
+    async saveScrapedProperties(userId, properties) {
+        try {
+            console.log('💾 Saving scraped properties under user:', userId);
+    
+            const propertiesRef = adminDb.collection('users').doc(userId).collection('properties');
+    
+            for (const property of properties) {
+                // Create a new document for every new property (always added)
+                const newDoc = await propertiesRef.add({
+                    ...property,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(), // Mark when added
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+    
+                console.log('✅ Added new property:', newDoc.id);
+            }
+    
+            console.log('🎯 Scraped properties successfully saved and will appear first.');
+        } catch (error) {
+            console.error('❌ Error saving scraped properties:', error);
+            throw new Error('Failed to save scraped properties.');
+        }
+    },
+
 }
 
 /**
