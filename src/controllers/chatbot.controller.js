@@ -3,73 +3,16 @@ import { dbService } from '../services/db.service.js'
 import { adminAuth } from '../config/firebase-admin.config.js'
 import { extractPropertyRequirements } from '../services/util.service.js'
 import { adminDb } from '../config/firebase-admin.config.js'
+import ChatbotContext from '../states/ChatbotContext.js'
+
 
 export const chatbotController = {
     async chat(req, res) {
-        try {
-            console.log('🟢 Incoming chat request:', req.body);
-    
-            // ✅ Step 1: Authenticate the User
-            const authHeader = req.headers.authorization;
-            if (!authHeader?.startsWith('Bearer ')) {
-                return res.json({
-                    message: { role: 'assistant', content: 'Please log in to save your property search preferences.' },
-                    requiresAuth: true,
-                });
-            }
-    
-            // ✅ Step 2: Verify Token
-            const token = authHeader.split('Bearer ')[1];
-            let userId;
-            try {
-                const decodedToken = await adminAuth.verifyIdToken(token);
-                userId = decodedToken.uid;
-                console.log('✅ User authenticated:', userId);
-            } catch (error) {
-                return res.json({
-                    message: { role: 'assistant', content: 'Your session has expired. Please log in again.' },
-                    requiresAuth: true,
-                });
-            }
-    
-            // ✅ Step 3: Validate Messages
-            const { messages } = req.body;
-            if (!Array.isArray(messages) || messages.some((m) => !m?.content)) {
-                return res.status(400).json({ error: 'Invalid messages format' });
-            }
-            console.log('📩 Messages received:', messages);
-    
-            // ✅ Step 4: Get or Create a Chat
-            const { chatId, isNewSession } = await dbService.getOrCreateChat(userId);
-    
-            // ✅ Step 5: Save User Message
-            const userMessage = messages[messages.length - 1];
-            await dbService.saveChatMessage(userId, chatId, { role: 'user', content: userMessage.content }, isNewSession);
-    
-            // ✅ Step 6: Get Response from OpenAI
-            const response = await openAiService.chatWithAI(messages);
-            console.log('🤖 OpenAI Response:', response);
-    
-            // ✅ Step 7: Save Assistant Message
-            await dbService.saveChatMessage(userId, chatId, { role: 'assistant', content: response.message.content }, false);
-    
-            // ✅ Step 8: If summary exists, send it to frontend for confirmation
-            if (response.requiresUserConfirmation) {
-                console.log('✅ Sending confirmation request to frontend');
-    
-                return res.json({
-                    message: response.message,
-                    searchPreferences: response.searchPreferences,
-                    requiresUserConfirmation: true, // Show the "Start Search" button
-                });
-            }
-    
-            return res.json({ message: response.message });
-        } catch (error) {
-            console.error('❌ Chat Error:', error);
-            res.status(500).json({ error: 'Failed to process chat request', details: error.message });
-        }
+        const services = { openAiService, dbService }
+        const context = new ChatbotContext(req, res, services);
+        return context.handle();
     },
+    
 
     async getChatId(req, res) {
         try {
