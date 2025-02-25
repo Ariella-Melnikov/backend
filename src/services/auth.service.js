@@ -102,7 +102,6 @@ export const authService = {
   // Validate token
   async validateToken(token) {
     try {
-      console.log('Validating token with Firebase Admin SDK...');
       const decodedToken = await adminAuth.verifyIdToken(token);
       const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
 

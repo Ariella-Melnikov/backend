@@ -14,10 +14,8 @@ try {
             credential: admin.credential.cert(serviceAccount),
             databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`
         });
-        console.log('✅ Firebase Admin initialized with project:', serviceAccount.project_id);
     }
 
-    console.log('✅ Firebase Admin initialized successfully');
 } catch (error) {
     console.error('❌ Firebase Admin initialization error:', error);
     console.error('Service Account:', process.env.FIREBASE_SERVICE_ACCOUNT ? 'Present' : 'Missing');

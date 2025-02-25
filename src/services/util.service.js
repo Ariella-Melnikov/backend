@@ -210,7 +210,6 @@ export function extractPropertyRequirements(messages, latestResponse) {
 
      // 🔹 Combine all chat messages + latest response into a single string
      const fullConversation = [...messages.map(m => m.content), latestResponse].join(" ");
-     console.log("🔍 Analyzing conversation:", fullConversation);
  
      // 🔹 Location Extraction
      for (const [hebrewCity, englishCity] of Object.entries(israeliCities)) {
@@ -261,7 +260,6 @@ export function extractPropertyRequirements(messages, latestResponse) {
        }
      });
 
-    console.log("✅ Extracted Property Requirements:", requirements);
     return requirements;
  }
 

@@ -72,9 +72,6 @@ app.use((err, req, res, next) => {
 const port = process.env.PORT || 3000
 
 server.listen(port, () => {
-    console.log('🚀 Server is running on port:', port)
-    console.log('📝 OpenAI API Key status:', process.env.OPENAI_API_KEY ? '✅ Found' : '❌ Missing')
-    console.log('🌐 Environment:', process.env.NODE_ENV)
     logger.info('Server is running on port: ' + port)
 }).on('error', (err) => {
     logger.error('Failed to start server:', err)

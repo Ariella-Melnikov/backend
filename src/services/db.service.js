@@ -32,8 +32,6 @@ export const dbService = {
 
     async add(collectionName, data) {
         try {
-            console.log('📝 Adding document to path:', collectionName)
-            console.log('📄 Document data:', data)
 
             const collectionRef = adminDb.collection(collectionName)
             const docRef = await collectionRef.add({
@@ -41,7 +39,6 @@ export const dbService = {
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
             })
 
-            console.log('✅ Document added successfully:', docRef.id)
             return { id: docRef.id, ...data }
         } catch (err) {
             console.error('❌ Failed to add document:', err)
@@ -51,7 +48,6 @@ export const dbService = {
 
     async query(collectionName, filterBy = {}) {
         try {
-            console.log('🔍 Querying collection:', collectionName)
             let query = adminDb.collection(collectionName)
 
             // Add filters if they exist
@@ -62,7 +58,6 @@ export const dbService = {
             })
 
             const snapshot = await query.get()
-            console.log('📊 Query results count:', snapshot.size)
             return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
         } catch (err) {
             console.error('❌ Query failed:', err)
@@ -76,7 +71,6 @@ export const dbService = {
      */
     async saveChatMessage(userId, chatId, message, isNewSession) {
         try {
-            console.log(`💾 Saving chat message for user: ${userId}, chat: ${chatId}`)
             const chatRef = adminDb.collection(`users`).doc(userId).collection('chats').doc(chatId)
             const timestamp = new Date().toISOString()  // Use ISO string timestamp
 
@@ -101,7 +95,6 @@ export const dbService = {
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 })
             }
-            console.log('✅ Message saved successfully')
         } catch (error) {
             console.error('❌ Error saving chat message:', error)
             throw new Error('Failed to save chat message')
@@ -109,7 +102,6 @@ export const dbService = {
     },
     async saveOrUpdateProperties(userId, chatId, properties) {
         try {
-          console.log('📦 Checking if properties exist for chat:', chatId);
       
           const propertiesRef = adminDb
             .collection('users')
@@ -121,7 +113,6 @@ export const dbService = {
           const existingPropertiesSnapshot = await propertiesRef.get();
       
           if (!existingPropertiesSnapshot.empty) {
-            console.log('🔄 Properties already exist. Updating them...');
       
             // Update each property document
             for (const property of properties) {
@@ -141,9 +132,7 @@ export const dbService = {
                 });
               }
             }
-          } else {
-            console.log('🆕 No properties exist. Creating new property documents...');
-            
+          } else {            
             // Add new properties
             for (const property of properties) {
               await propertiesRef.add({
@@ -154,7 +143,6 @@ export const dbService = {
             }
           }
       
-          console.log('✅ Properties successfully saved/updated for chat:', chatId);
         } catch (error) {
           console.error('❌ Error saving properties:', error);
           throw new Error('Failed to save or update properties.');
@@ -165,7 +153,6 @@ export const dbService = {
      */
     async confirmSearch(userId, chatId, propertyRequirements) {
         try {
-            console.log('📦 Saving confirmed search parameters:', propertyRequirements);
 
             const parametersRef = adminDb
                 .collection('users')
@@ -196,7 +183,6 @@ export const dbService = {
                 result = { id: newDoc.id };
             }
 
-            console.log('✅ Search parameters successfully saved!');
             return result;
         } catch (error) {
             console.error('🔥 Error saving parameters:', error);
@@ -209,7 +195,6 @@ export const dbService = {
      */
     async getOrCreateChat(userId) {
         try {
-            console.log(`🔎 Checking for existing chat for user: ${userId}`)
 
             const chatsRef = adminDb.collection(`users`).doc(userId).collection('chats')
             const latestChatQuery = await chatsRef.orderBy('createdAt', 'desc').limit(1).get()
@@ -231,7 +216,6 @@ export const dbService = {
                 const THRESHOLD = 30 * 60 * 1000 // 30 minutes threshold
 
                 if (timeDiff > THRESHOLD) {
-                    console.log('🆕 Starting a new session: Deleting old messages.')
                     await latestChatDoc.ref.update({
                         messages: [],
                         updatedAt: timestamp,
@@ -240,7 +224,6 @@ export const dbService = {
                     isNewSession = true
                 }
 
-                console.log('✅ Found existing chat:', latestChatDoc.id)
                 return { 
                     chatId: latestChatDoc.id, 
                     isNewSession, 
@@ -257,7 +240,6 @@ export const dbService = {
                 messages: [],
             })
 
-            console.log('🆕 Created new chat:', newChatRef.id)
             return { 
                 chatId: newChatRef.id, 
                 isNewSession: true, 
@@ -281,7 +263,6 @@ export const dbService = {
 
             if (doc.exists) {
                 const existingData = doc.data()
-                console.log('🔄 Existing search found, merging properties...')
 
                 // 🛠 Merge properties (prevent duplicates)
                 updatedProperties = mergeProperties(existingData.properties, newProperties)
@@ -293,9 +274,7 @@ export const dbService = {
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 })
 
-                console.log('✅ Search updated for user:', userId)
             } else {
-                console.log('🆕 No existing search, creating a new one...')
 
                 // 🆕 Create a new search document
                 await searchRef.set({
@@ -305,7 +284,6 @@ export const dbService = {
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 })
 
-                console.log('✅ New search saved for user:', userId)
             }
 
             return searchRef.id // Return the document ID
@@ -317,7 +295,6 @@ export const dbService = {
 
     async saveScrapedProperties(userId, properties) {
         try {
-            console.log('💾 Saving scraped properties under user:', userId);
     
             const propertiesRef = adminDb.collection('users').doc(userId).collection('properties');
     
@@ -329,7 +306,6 @@ export const dbService = {
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 });
     
-                console.log('✅ Added new property:', newDoc.id);
             }
     
             console.log('🎯 Scraped properties successfully saved and will appear first.');

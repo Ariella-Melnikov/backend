@@ -4,7 +4,6 @@ import ChatManagementState from './ChatManagementState.js';
 import SaveUserMessageState from './SaveUserMessageState.js';
 import GenerateAIResponseState from './GenerateAIResponseState.js';
 import SaveAIMessageState from './SaveAIMessageState.js';
-import ConfirmSummaryState from './ConfirmSummaryState.js';
 
 class ChatbotContext {
     constructor(req, res, services) {
@@ -17,6 +16,8 @@ class ChatbotContext {
         this.messages = [];
         this.isNewSession = false;
         this.aiResponse = null;
+        this.searchPreferences = null;
+        this.requiresUserConfirmation = false;
 
         // Instantiate states
         this.authenticateUserState = new AuthenticateUserState();
@@ -25,13 +26,13 @@ class ChatbotContext {
         this.saveUserMessageState = new SaveUserMessageState();
         this.generateAIResponseState = new GenerateAIResponseState();
         this.saveAIMessageState = new SaveAIMessageState();
-        this.confirmSummaryState = new ConfirmSummaryState();
 
         // Start with AuthenticateUserState
         this.currentState = this.authenticateUserState;
     }
 
     transitionTo(state) {
+        console.log('🔄 Transitioning to state:', state.constructor.name);
         this.currentState = state;
     }
 
