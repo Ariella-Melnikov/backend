@@ -1,57 +1,58 @@
-import State from './state.js';
+import State from './state.js'
 
 class GenerateAIResponseState extends State {
     async handle(context) {
-        const { openAiService } = context.services;
-        const { messages } = context;
+        const { openAiService } = context.services
+        const { messages } = context
 
         try {
-            console.log('🔄 Generating AI response...');
-            
-            // ✅ Step 1: Get response from OpenAI
-            const response = await openAiService.chatWithAI(messages);
+            console.log('🔄 Generating AI response...')
 
-            console.log('🤖 Raw AI Response:', response.message.content);
+            // Get response and extracted parameters from OpenAI service
+            const { message, searchPreferences, requiresUserConfirmation } = await openAiService.chatWithAI(messages)
 
-            // ✅ Step 2: Extract structured search preferences **before saving**
-            if (response.searchPreferences) {
-                console.log('✅ Search preferences detected:', response.searchPreferences);
-                context.searchPreferences = response.searchPreferences;
-                context.requiresUserConfirmation = response.requiresUserConfirmation;
-            } else {
-                console.log('⚠️ No structured search preferences detected');
-                context.searchPreferences = null;
-                context.requiresUserConfirmation = false;
-            }
-
-            // ✅ Step 3: Store response in context BEFORE transitioning
+            // Store response in context
             context.aiResponse = {
-                message: response.message,
-                searchPreferences: context.searchPreferences,
-                requiresUserConfirmation: context.requiresUserConfirmation
-            };
-
-            console.log('🤖 Updated AI Response stored in Context:', context.aiResponse);
-
-            // ✅ Step 4: If search preferences exist, return them immediately
-            if (context.searchPreferences) {
-                return context.res.json({
-                    message: context.aiResponse.message,
-                    searchPreferences: context.searchPreferences,
-                    requiresUserConfirmation: context.requiresUserConfirmation
-                });
+                message,
+                searchPreferences,
+                requiresUserConfirmation,
             }
 
-            // ✅ Step 5: If no preferences, transition to save message state
-            console.log('🔄 Transitioning to SaveAIMessageState...');
-            context.transitionTo(context.saveAIMessageState);
-            return context.handle();
+            console.log('🤖 Updated AI Response stored in Context:', JSON.stringify(context.aiResponse, null, 2));
 
+            // If search preferences exist, return them immediately
+            if (searchPreferences) {
+                    console.log('🚀 Sending response to frontend:', JSON.stringify({
+                        message: context.aiResponse.message,
+                        searchPreferences,
+                        requiresUserConfirmation
+                    }, null, 2));
+                
+                    return context.res.json({
+                        message: context.aiResponse.message,
+                        searchPreferences,
+                        requiresUserConfirmation
+                    });
+                    
+            }
+
+            // ✅ Otherwise, transition to SaveAIMessageState
+            // ✅ Ensure we do not transition multiple times
+            if (context.transitionedToSaveAIMessageState) {
+                console.warn('⚠️ Already transitioned to SaveAIMessageState. Skipping...')
+                return
+            }
+
+            context.transitionedToSaveAIMessageState = true
+
+            console.log('🔄 Transitioning to SaveAIMessageState...')
+            context.transitionTo(context.saveAIMessageState)
+            return context.handle()
         } catch (error) {
-            console.error('❌ Error generating AI response:', error);
-            return context.res.status(500).json({ error: 'Failed to generate AI response' });
+            console.error('❌ Error generating AI response:', error)
+            return context.res.status(500).json({ error: 'Failed to generate AI response' })
         }
     }
 }
 
-export default GenerateAIResponseState;
+export default GenerateAIResponseState

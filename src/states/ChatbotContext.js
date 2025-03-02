@@ -5,6 +5,11 @@ import SaveUserMessageState from './SaveUserMessageState.js';
 import GenerateAIResponseState from './GenerateAIResponseState.js';
 import SaveAIMessageState from './SaveAIMessageState.js';
 
+import ConfirmSearchState from './ConfirmSearchState.js';
+import GoogleSearchState from './GoogleSearchState.js';
+import ScrapeListingsState from './ScrapeListingsState.js';
+import SavePropertiesState from './SavePropertiesState.js';
+
 class ChatbotContext {
     constructor(req, res, services) {
         this.req = req;
@@ -18,6 +23,9 @@ class ChatbotContext {
         this.aiResponse = null;
         this.searchPreferences = null;
         this.requiresUserConfirmation = false;
+        this.searchResults = null;
+        this.listingUrls = [];
+        this.scrapedProperties = [];
 
         // Instantiate states
         this.authenticateUserState = new AuthenticateUserState();
@@ -26,6 +34,11 @@ class ChatbotContext {
         this.saveUserMessageState = new SaveUserMessageState();
         this.generateAIResponseState = new GenerateAIResponseState();
         this.saveAIMessageState = new SaveAIMessageState();
+
+        this.confirmSearchState = new ConfirmSearchState();
+        this.googleSearchState = new GoogleSearchState();
+        this.scrapeListingsState = new ScrapeListingsState();
+        this.savePropertiesState = new SavePropertiesState();
 
         // Start with AuthenticateUserState
         this.currentState = this.authenticateUserState;

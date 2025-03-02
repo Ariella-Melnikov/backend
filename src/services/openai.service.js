@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import util from 'util';
 
 dotenv.config();
 
@@ -67,42 +68,57 @@ const systemPrompt = {
 const extractSearchParams = (responseMessage) => {
     console.log('🔍 Raw response message:', responseMessage);
 
-    // ✅ Updated regex to detect summaries properly
-    const summaryRegex = /📌\s*\*\*(?:Summary of your search preferences|סיכום של העדפות החיפוש שלך):\*\*/i;
-    const locationMatch = responseMessage.match(/📍\s*(?:Location|מיקום):\s*([^\n]+)/i);
-    const priceMatch = responseMessage.match(/💰\s*(?:Maximum Budget|תקציב מרבי):\s*([\d,]+)/i);
-    const typeMatch = responseMessage.match(/🏡\s*(?:Property Type|סוג נכס):\s*([^\n]+)/i);
-    const bedroomsMatch = responseMessage.match(/🛏️\s*(?:Bedrooms|מספר חדרים):\s*([\d]+)/i);
-    const featuresMatch = responseMessage.match(/🔥\s*(?:Features|תכונות):\s*([^\n]+)/i);
-
-    if (summaryRegex.test(responseMessage)) {
-        console.log('✅ Found summary section');
-        
-        if (locationMatch && priceMatch && typeMatch && bedroomsMatch && featuresMatch) {
-            const propertyRequirements = {
-                location: locationMatch[1].trim(),
-                maxPrice: parseInt(priceMatch[1].replace(',', '')),  // Handle commas
-                propertyType: typeMatch[1].trim(),
-                bedrooms: parseInt(bedroomsMatch[1]),
-                features: featuresMatch[1].split(/[,\s]ו/).map(f => f.trim())  // Handle Hebrew 'ו' (and)
+    const searchParamsMatch = responseMessage.match(/<search_params>(.*?)<\/search_params>/s);
+    if (searchParamsMatch) {
+        try {
+            const searchParamsJson = searchParamsMatch[1].trim();
+            const parameters = JSON.parse(searchParamsJson);
+            
+            const formattedParams = {
+                location: {
+                    hebrew: parameters.location,
+                    english: ''
+                },
+                priceRange: {
+                    min: 0,
+                    max: parameters.maxPrice
+                },
+                propertyType: {
+                    hebrew: parameters.propertyType,
+                    english: ''
+                },
+                rooms: parseInt(parameters.bedrooms),
+                features: Array.isArray(parameters.features) 
+                    ? parameters.features.map(feature => ({
+                        hebrew: feature.trim(), 
+                        english: ''
+                    })) 
+                    : []  // Ensure it's always an array
             };
 
-            console.log('✅ Extracted parameters:', propertyRequirements);
-            return propertyRequirements;
-        } else {
-            console.log('⚠️ Could not extract all required fields from summary', {
-                location: !!locationMatch,
-                price: !!priceMatch,
-                type: !!typeMatch,
-                bedrooms: !!bedroomsMatch,
-                features: !!featuresMatch
-            });
+            console.log('🏠 Formatted search parameters:', JSON.stringify(formattedParams, null, 2));
+
+            return {
+                hasParameters: true,
+                parameters: formattedParams,
+                requiresUserConfirmation: true
+            };
+        } catch (error) {
+            console.error('Error parsing search parameters:', error);
+            return {
+                hasParameters: false,
+                parameters: null,
+                requiresUserConfirmation: false
+            };
         }
     } else {
-        console.log('⚠️ No summary section found in response');
+        console.log('⚠️ No search parameters found in response');
+        return {
+            hasParameters: false,
+            parameters: null,
+            requiresUserConfirmation: false
+        };
     }
-
-    return null;
 };
 
 export const openAiService = {
@@ -116,35 +132,37 @@ export const openAiService = {
             ];
 
             const completion = await openai.chat.completions.create({
-                model: 'gpt-3.5-turbo',
-                messages: messagesWithSystem,
+                model: 'gpt-4',
+                messages: [
+                    {
+                        role: 'system',
+                        content: `You are a helpful assistant for apartment searching. 
+                          When you identify search parameters, include them in XML-like tags 
+                          <search_params>{json}</search_params> but show the user only a clean 
+                          Hebrew summary without the technical details.`
+                    },
+                    ...messagesWithSystem
+                ],
                 temperature: 0.7,
-                max_tokens: 500,
             });
 
-            const responseMessage = completion.choices[0].message.content;
-            console.log('🤖 OpenAI Response:', responseMessage);
-
-            // Extract search parameters if present
-            const propertyRequirements = extractSearchParams(responseMessage);
-            const hasSummary = !!propertyRequirements;
-
-            console.log('🔍 Extracted search parameters:', {
-                hasParameters: hasSummary,
-                parameters: propertyRequirements
-            });
+            const response = completion.choices[0].message.content;
+            // Extract search params but clean the message for user
+            const cleanMessage = response.replace(/<search_params>.*?<\/search_params>/s, '').trim();
+            
+            const searchParamsResult = extractSearchParams(response);
 
             return {
-                message: {
-                    role: 'assistant',
-                    content: responseMessage,
+                message: { 
+                    role: 'assistant', 
+                    content: cleanMessage 
                 },
-                searchPreferences: propertyRequirements,
-                requiresUserConfirmation: hasSummary,
+                searchPreferences: searchParamsResult.parameters,
+                requiresUserConfirmation: searchParamsResult.requiresUserConfirmation
             };
         } catch (error) {
-            console.error('OpenAI API Error:', error);
-            throw new Error(`Failed to get response from OpenAI: ${error.message}`);
+            console.error('OpenAI API error:', error);
+            throw error;
         }
     },
 };
