@@ -1,4 +1,4 @@
-import { scrapeProperties } from '../lib/scraper.js';
+import scraperService from '../services/scraper.service.js';
 import { dbService } from '../services/db.service.js';
 
 export async function searchProperties(req, res) {
@@ -12,7 +12,7 @@ export async function searchProperties(req, res) {
     console.log('🔎 Searching for:', searchParams);
 
     // 🏠 Start the web scraping process
-    const newProperties = await scrapeProperties(searchParams);
+    const newProperties = await scraperService.scrapeProperties(searchParams);
 
     if (newProperties.length === 0) {
       return res.status(404).json({ error: "No properties found." });

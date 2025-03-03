@@ -1,9 +1,10 @@
 import { openAiService } from '../services/openai.service.js'
 import { dbService } from '../services/db.service.js'
-import { adminAuth } from '../config/firebase-admin.config.js'
-import { extractPropertyRequirements } from '../services/util.service.js'
 import { adminDb } from '../config/firebase-admin.config.js'
 import ChatbotContext from '../states/ChatbotContext.js'
+import { googleSearchService } from '../services/googleSearch.service.js'
+import scraperService from '../services/scraper.service.js'
+
 
 
 export const chatbotController = {
@@ -68,28 +69,30 @@ export const chatbotController = {
 
     async confirmSearch(req, res) {
         try {
-            const { userId, chatId, propertyRequirements } = req.body;
+            console.log("📥 Received confirmSearch request:", JSON.stringify(req.body, null, 2));
 
-            console.log('📝 Confirming search:', { userId, chatId, propertyRequirements });
+            const services = { openAiService, dbService, googleSearchService, scraperService };
+            const context = new ChatbotContext(req, res, services);
 
-            if (!userId || !chatId || !propertyRequirements) {
+            // Store request parameters in context
+            context.userId = req.body.userId;
+            context.chatId = req.body.chatId;
+            context.searchPreferences = req.body.propertyRequirements;
+
+            if (!context.userId || !context.chatId || !context.searchPreferences) {
                 return res.status(400).json({ error: 'Missing required fields.' });
             }
 
-            // ✅ Save search parameters to Firestore BEFORE searching online
-            const result = await dbService.confirmSearch(userId, chatId, propertyRequirements);
-            console.log('✅ Search parameters saved:', result);
-
-            res.json({ 
-                success: true, 
-                message: 'Search parameters saved successfully.',
-                parametersId: result.id 
-            });
+            // ✅ Use state machine to handle confirmation
+            context.transitionTo(context.confirmSearchState);
+            return context.handle();
+            
         } catch (error) {
             console.error('❌ Error confirming search:', error);
             res.status(500).json({ error: 'Failed to confirm search.' });
         }
     },
+    
     async saveProperties(req, res) {
         try {
           const { userId, chatId, properties } = req.body;

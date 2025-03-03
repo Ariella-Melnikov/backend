@@ -253,62 +253,32 @@ export const dbService = {
         }
     },
 
-    async saveOrUpdateUserSearch(userId, searchParams, newProperties) {
-        try {
-            const userRef = admin.firestore().collection('users').doc(userId)
-            const searchRef = userRef.collection('searches').doc('latest')
-
-            const doc = await searchRef.get()
-            let updatedProperties = newProperties
-
-            if (doc.exists) {
-                const existingData = doc.data()
-
-                // 🛠 Merge properties (prevent duplicates)
-                updatedProperties = mergeProperties(existingData.properties, newProperties)
-
-                // ✅ Update existing search
-                await searchRef.update({
-                    searchParams,
-                    properties: updatedProperties,
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                })
-
-            } else {
-
-                // 🆕 Create a new search document
-                await searchRef.set({
-                    searchParams,
-                    properties: updatedProperties,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                })
-
-            }
-
-            return searchRef.id // Return the document ID
-        } catch (error) {
-            console.error('❌ Failed to save or update search:', error)
-            throw new Error('Database error while saving user search.')
-        }
-    },
 
     async saveScrapedProperties(userId, properties) {
         try {
+            if (!userId) {
+                console.error('❌ Error: Missing userId when saving properties.');
+                throw new Error('UserId is required.');
+            }
+    
+            if (!Array.isArray(properties) || properties.length === 0) {
+                console.error('⚠️ No properties provided for saving.');
+                return;
+            }
+    
+            console.log(`💾 Saving ${properties.length} properties for user: ${userId}`);
     
             const propertiesRef = adminDb.collection('users').doc(userId).collection('properties');
     
             for (const property of properties) {
-                // Create a new document for every new property (always added)
-                const newDoc = await propertiesRef.add({
+                await propertiesRef.add({
                     ...property,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(), // Mark when added
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
                     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 });
-    
             }
     
-            console.log('🎯 Scraped properties successfully saved and will appear first.');
+            console.log('🎯 Scraped properties successfully saved.');
         } catch (error) {
             console.error('❌ Error saving scraped properties:', error);
             throw new Error('Failed to save scraped properties.');
